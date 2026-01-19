@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business History Academics - Global Distribution (with Opt-In Details)</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+        
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            left: 80px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            max-width: 380px;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+        }
+        
+        .info-panel h1 {
+            font-size: 20px;
+            margin-bottom: 8px;
+            color: #2c3e50;
+        }
+        
+        .info-panel p {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-bottom: 10px;
+        }
+        
+        .stats {
+            font-size: 13px;
+            color: #34495e;
+            background: #ecf0f1;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        
+        .stats strong {
+            color: #2c3e50;
+        }
+        
+        .stat-row {
+            margin-bottom: 5px;
+        }
+        
+        .stat-row:last-child {
+            margin-bottom: 0;
+        }
+        
+        .leaflet-popup-content {
+            margin: 15px;
+            min-width: 180px;
+        }
+        
+        .popup-location {
+            font-weight: 600;
+            font-size: 18px;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .popup-count {
+            font-size: 32px;
+            font-weight: 700;
+            color: #3498db;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+        
+        .popup-label {
+            font-size: 13px;
+            color: #7f8c8d;
+            text-align: center;
+        }
+        
+        /* Custom marker styles */
+        .custom-marker {
+            background-color: #3498db;
+            border: 3px solid white;
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            color: white;
+            font-weight: 700;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .custom-marker:hover {
+            background-color: #2980b9;
+            transform: scale(1.1);
+            box-shadow: 0 3px 12px rgba(0,0,0,0.4);
+        }
+        
+        .custom-marker.large {
+            background-color: #e74c3c;
+        }
+        
+        .custom-marker.large:hover {
+            background-color: #c0392b;
+        }
+        
+        .custom-marker.medium {
+            background-color: #f39c12;
+        }
+        
+        .custom-marker.medium:hover {
+            background-color: #d68910;
+        }
+        
+        @media (max-width: 768px) {
+            .info-panel {
+                max-width: calc(100vw - 80px);
+                font-size: 11px;
+                max-height: 50vh;
+            }
+            
+            .info-panel h1 {
+                font-size: 16px;
+            }
+            
+            .info-panel p {
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div class="info-panel">
+        <h1>Business History Academics</h1>
+        <p>Global distribution by location</p>
+        <div class="stats">
+            <div class="stat-row" id="total-academics">Loading...</div>
+            <div class="stat-row" id="total-locations"></div>
+        </div>
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #bdc3c7; font-size: 12px; color: #7f8c8d; line-height: 1.5;">
+            <p style="margin-bottom: 10px;">This map was compiled from public data sources available online, such as Google Scholar and university pages and other academic fora.</p>
+            <p style="margin-bottom: 8px;">If you want to know if you are included in the map, or if you want to make your name, university and research interests publicly available on the map, please fill in this form: <a href="https://forms.gle/YourFormLinkHere" target="_blank" rel="noopener noreferrer" style="color: #3498db; text-decoration: none; font-weight: 600;">MOH Map – Fill out form</a>.</p>
+            <p style="margin-bottom: 0;">You can also withdraw your information via the same form.</p>
+        </div>
+    </div>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    
+    <script>
+        // Function to dynamically load a script
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+        
+        // Calculate marker size based on count
+        function getMarkerSize(count) {
+            if (count >= 100) return 50;
+            if (count >= 50) return 45;
+            if (count >= 30) return 40;
+            if (count >= 20) return 35;
+            if (count >= 10) return 30;
+            return 25;
+        }
+        
+        // Get marker class based on count
+        function getMarkerClass(count) {
+            if (count >= 100) return 'large';
+            if (count >= 30) return 'medium';
+            return '';
+        }
+        
+        // Initialize when window is fully loaded
+        window.addEventListener('load', async function() {
+            try {
+                // Check if Leaflet loaded from primary CDN
+                if (typeof L === 'undefined') {
+                    console.warn('Primary Leaflet CDN (unpkg) failed, trying cdnjs fallback...');
+                    document.getElementById('total-academics').innerHTML = 'Loading map library...';
+                    
+                    try {
+                        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js');
+                        console.log('Leaflet loaded from cdnjs');
+                    } catch (error) {
+                        throw new Error('Unable to load Leaflet from any CDN. Please check your internet connection.');
+                    }
+                }
+                
+                // Verify Leaflet is now available
+                if (typeof L === 'undefined') {
+                    throw new Error('Leaflet library could not be loaded');
+                }
+                
+                document.getElementById('total-academics').innerHTML = 'Initializing map...';
+                
+                // Initialize the map
+                const map = L.map('map', {
+                    center: [35, 15],
+                    zoom: 3,
+                    minZoom: 2,
+                    maxZoom: 18,
+                    worldCopyJump: true
+                });
+                
+                // Add tile layer (OpenStreetMap)
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                    maxZoom: 19
+                }).addTo(map);
+                
+                document.getElementById('total-academics').innerHTML = 'Loading data...';
+                
+                // Load and display data
+                const response = await fetch('academics_data_with_optin.json');
+                if (!response.ok) {
+                    throw new Error('Failed to load academics_data_with_optin.json. Make sure the file is in the same folder as index.html');
+                }
+                
+                const data = await response.json();
+                
+                let totalAcademics = 0;
+                
+                // Calculate total from country markers only (they're aggregates)
+                // to avoid double-counting with city markers
+                const countryMarkers = data.filter(item => item.type === 'country');
+                totalAcademics = countryMarkers.reduce((sum, item) => sum + item.count, 0);
+                
+                data.forEach(location => {
+                    
+                    // Calculate marker size
+                    const size = getMarkerSize(location.count);
+                    const markerClass = getMarkerClass(location.count);
+                    
+                    // Create custom div icon
+                    const divIcon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: `<div class="custom-marker ${markerClass}" style="width: ${size}px; height: ${size}px;">${location.count}</div>`,
+                        iconSize: [size, size],
+                        iconAnchor: [size / 2, size / 2],
+                        popupAnchor: [0, -size / 2]
+                    });
+                    
+                    // Create marker
+                    const marker = L.marker([location.lat, location.lon], {
+                        icon: divIcon
+                    });
+                    
+                    // Create popup content based on marker type
+                    let popupContent;
+                    
+                    if (location.type === 'individual') {
+                        // Individual opted-in academic - show full details
+                        popupContent = `
+                            <div class="popup-location" style="font-size: 15px; font-weight: 600; margin-bottom: 8px;">${location.name}</div>
+                            <div class="popup-label" style="margin-bottom: 8px;">${location.affiliation}</div>
+                            <div class="popup-label" style="margin-top: 10px; font-weight: 600;">Research Interests:</div>
+                            <div class="popup-label" style="margin-top: 4px;">${location.interests}</div>
+                            <div class="popup-label" style="margin-top: 10px; font-size: 11px; color: #7f8c8d;">📍 ${location.location}</div>
+                        `;
+                    } else {
+                        // Aggregate marker (city or country) - show count only
+                        popupContent = `
+                            <div class="popup-location">${location.location}</div>
+                            <div class="popup-count">${location.count}</div>
+                            <div class="popup-label">business ${location.count === 1 ? 'historian' : 'historians'}</div>
+                        `;
+                    }
+                    
+                    marker.bindPopup(popupContent, {
+                        maxWidth: 280,
+                        minWidth: 220,
+                        className: 'custom-popup'
+                    });
+                    
+                    marker.addTo(map);
+                });
+                
+                // Update statistics
+                document.getElementById('total-academics').innerHTML = 
+                    `<strong>${totalAcademics}</strong> business historians`;
+                document.getElementById('total-locations').innerHTML = 
+                    `<strong>${data.length}</strong> locations`;
+                    
+                console.log('Map initialized successfully');
+                
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('total-academics').innerHTML = 
+                    `<strong style="color: #e74c3c;">Error: ${error.message}</strong><br><br>` +
+                    'Try:<br>1. Refresh the page<br>2. Check your internet connection<br>3. Make sure academics_data.json is in the same folder';
+                document.getElementById('total-locations').innerHTML = '';
+            }
+        });
+    </script>
+</body>
+</html>
